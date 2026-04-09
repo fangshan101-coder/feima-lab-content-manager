@@ -1,17 +1,33 @@
+# ============================================================
+# 本仓库只发布「用户侧产物」：SKILL.md / README.md / scripts/*.mjs /
+# references/*。所有 dev 资产（源码、测试、构建工具、devDependencies）
+# 都保留在维护者本机但不推送。
+# ============================================================
+
 # User-specific memory (per skill 记忆规范)
 MEMORY.md
 
-# Maintainer-only drift check tool (not shipped)
-scripts/check-drift.mjs
-scripts/lib/drift-*.mjs
+# --- Maintainer-only: 源码 & 构建 ---
+# scripts/render.mjs 是 src/ 通过 build-bundle.mjs 预打包的产物，
+# 用户只用 bundle，不需要源码和构建脚本。
+src/
+build-bundle.mjs
 
-# node_modules is dev-only (for tests / rebuilding scripts/render.mjs bundle).
-# End users do NOT need it — scripts/render.mjs is a pre-bundled, self-contained file.
+# --- Maintainer-only: 测试 ---
+# 测试只在维护者本机 `npm test` 时运行，用户不会碰。
+tests/
+
+# --- Maintainer-only: npm / dev dependencies ---
+# package.json 只记录 devDependencies（esbuild / unified / @babel/*），
+# 用户跑 bundle 零依赖，这些都不需要。
+package.json
+package-lock.json
 node_modules/
 
-# Test artifacts
-tests/tmp/
-tests/tmp-*/
+# --- Maintainer-only: drift check ---
+# 检测 feima-lab 源码漂移的工具，硬编码本机路径，用户用不到。
+scripts/check-drift.mjs
+scripts/lib/drift-*.mjs
 
 # OS
 .DS_Store
