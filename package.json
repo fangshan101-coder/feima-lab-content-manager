@@ -1,0 +1,21 @@
+{
+  "name": "feima-lab-content-manager",
+  "private": true,
+  "type": "module",
+  "description": "Dev-time manifest only. The skill ships ZERO runtime dependencies — scripts/render.mjs is a pre-bundled, self-contained file. These devDependencies are ONLY needed for running tests (node --test tests/) or regenerating the bundle (node build-bundle.mjs).",
+  "scripts": {
+    "build": "node build-bundle.mjs",
+    "test": "node --test tests/base-styles.test.mjs tests/escape-html.test.mjs tests/renderer-callout.test.mjs tests/renderer-compare-card.test.mjs tests/renderer-timeline.test.mjs tests/renderer-code-tabs.test.mjs tests/renderer-collapse.test.mjs tests/renderer-image-carousel.test.mjs tests/renderer-playground.test.mjs tests/renderer-registry.test.mjs tests/mdx-parser.test.mjs tests/interactive-js.test.mjs tests/render-e2e.test.mjs tests/new-post.test.mjs tests/image-localize.test.mjs",
+    "drift": "node scripts/check-drift.mjs"
+  },
+  "devDependencies": {
+    "@babel/parser": "^7.29.2",
+    "@babel/traverse": "^7.29.0",
+    "esbuild": "^0.28.0",
+    "hast-util-to-html": "^9.0.5",
+    "mdast-util-to-hast": "^13.2.1",
+    "remark-mdx": "^3.1.1",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5"
+  }
+}

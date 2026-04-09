@@ -1,0 +1,17 @@
+# User-specific memory (per skill 记忆规范)
+MEMORY.md
+
+# Maintainer-only drift check tool (not shipped)
+scripts/check-drift.mjs
+scripts/lib/drift-*.mjs
+
+# node_modules is dev-only (for tests / rebuilding scripts/render.mjs bundle).
+# End users do NOT need it — scripts/render.mjs is a pre-bundled, self-contained file.
+node_modules/
+
+# Test artifacts
+tests/tmp/
+tests/tmp-*/
+
+# OS
+.DS_Store
