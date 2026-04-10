@@ -1,7 +1,7 @@
 ---
 name: feima-lab-content-manager
-description: 编写 feima-lab 博客、创建 feima-lab 文章、把纯文本/自然语言/已有 md 文档转成 feima-lab 博客样式的 MDX 文章，像素级还原 7 种自定义组件（Callout/CodeTabs/Collapse/CompareCard/Timeline/ImageCarousel/Playground），生成零依赖 preview.html 可离线浏览器预览（交互可用），自动本地化图片（下载/拷贝到 images/）、管理文章元数据（title/author/category/tags/coverImage）。**完整的 feima-lab 后端集成**（对接 fenxiang-ai-brain ContentApiController）：保存草稿 / 更新 / 一键发布 / 取消发布、自动上传封面图到 OSS、列出远程分类（支持 BLOG/NEWS 路由筛选）、列出文章列表（支持分类/标签/slug/发布状态多条件过滤 + 分页）、按 slug 查询详情、列出 / 创建标签、save 时自动闭环处理 tags（查已有 → 缺失的自动建 → 映射成 tagIds）。支持分级工作流：简单文档一把生成、复杂文档先出结构提案确认再生成。触发词：编写 feima-lab 博客、feima-lab 文章、feima-lab 博客管理、feima-lab 样式、把这个整成 feima-lab、blog 写作、博客样式化、feima-lab 发布、发布到 feima-lab、推到远程、feima lab content、保存文章、更新文章、取消发布、下线文章、上传封面图、列出分类、列出标签、列出文章、查重 slug、写动态、写新闻。
-version: 1.2.0
+description: 编写 feima-lab 博客、创建 feima-lab 文章、把纯文本/自然语言/已有 md 文档转成 feima-lab 博客样式的 MDX 文章，像素级还原 8 种自定义组件（Callout/CodeTabs/Collapse/CompareCard/Timeline/ImageCarousel/Playground/Video），v1.3 起组件风格和 feima-lab 首页设计系统对齐：白底卡片 + 1px #E8E5E0 边框 + 20px 圆角 + 温暖砖红品牌色 + 降饱和彩色 badge，去掉糖果色大面积背景和左边条。生成零依赖 preview.html 可离线浏览器预览（交互可用），自动本地化图片（下载/拷贝到 images/）、管理文章元数据（title/author/category/tags/coverImage）。**完整的 feima-lab 后端集成**（对接 fenxiang-ai-brain ContentApiController）：保存草稿 / 更新 / 一键发布 / 取消发布、自动上传封面图到 OSS、列出远程分类（支持 BLOG/NEWS 路由筛选）、列出文章列表（支持分类/标签/slug/发布状态多条件过滤 + 分页）、按 slug 查询详情、列出 / 创建标签、save 时自动闭环处理 tags（查已有 → 缺失的自动建 → 映射成 tagIds）。支持分级工作流：简单文档一把生成、复杂文档先出结构提案确认再生成。触发词：编写 feima-lab 博客、feima-lab 文章、feima-lab 博客管理、feima-lab 样式、把这个整成 feima-lab、blog 写作、博客样式化、feima-lab 发布、发布到 feima-lab、推到远程、feima lab content、保存文章、更新文章、取消发布、下线文章、上传封面图、列出分类、列出标签、列出文章、查重 slug、写动态、写新闻、嵌入视频、YouTube、Bilibili。
+version: 1.3.0
 ---
 
 # feima-lab 内容管家 (feima-lab-content-manager)
@@ -97,7 +97,9 @@ version: 1.2.0
 
 **严禁使用白名单之外的组件**：
 
-    Callout / CodeTabs / Collapse / CompareCard / Timeline / ImageCarousel / Playground
+    Callout / CodeTabs / Collapse / CompareCard / Timeline / ImageCarousel / Playground / Video
+
+（v1.3 新增 Video；支持 YouTube / Bilibili 自动转 embed iframe，其他 URL 走原生 `<video>`。）
 
 用某个组件前 Read `references/components/<组件名小写>.md` 速查语法。
 

@@ -29087,11 +29087,11 @@ renderers.Callout = function renderCallout(props, childrenHtml, snapshot) {
   }
   const spec = snapshot.components.Callout;
   const variant = spec.variants[type];
-  const containerStyle = `background:${variant.bg};border-left:4px solid ${variant.border};${spec.static_styles.container}`;
-  const headerStyle = spec.static_styles.header;
-  const bodyStyle = spec.static_styles.body;
-  const titleHtml = props.title ? `<strong style="font-size:0.9375rem">${escapeHtml(props.title)}</strong>` : "";
-  return `<div class="fmx-callout" style="${containerStyle}"><div style="${headerStyle}${props.title ? ";margin-bottom:0.5rem" : ""}"><span>${variant.icon}</span>${titleHtml}</div><div style="${bodyStyle}">${childrenHtml}</div></div>`;
+  const s = spec.static_styles;
+  const dotStyle = `${s.badge_dot};background:${variant.accent}`;
+  const titleHtml = props.title ? `<strong style="${s.title}">${escapeHtml(props.title)}</strong>` : "";
+  const headerWithSpacing = props.title ? `${s.header};margin-bottom:0.625rem` : s.header;
+  return `<div class="fmx-callout" data-type="${type}" style="${s.container}"><div style="${headerWithSpacing}"><span aria-hidden="true" style="${dotStyle}"></span><span style="${s.icon}">${variant.icon}</span>` + titleHtml + `</div><div style="${s.body}">${childrenHtml}</div></div>`;
 };
 function parseSide(val) {
   if (!val) return { title: "", items: [] };
@@ -29107,12 +29107,12 @@ renderers.CompareCard = function renderCompareCard(props, _childrenHtml, snapsho
   const right = parseSide(props.right);
   const s = snapshot.components.CompareCard.static_styles;
   function renderSide(side, which) {
-    const bgStyle = which === "left" ? s.card_left_bg : s.card_right_bg;
+    const badgeStyle = which === "left" ? s.badge_left : s.badge_right;
     const items = (side.items || []).map((item, i, arr) => {
-      const borderStyle = i < arr.length - 1 ? ";border-bottom:1px solid rgba(0,0,0,0.06)" : "";
+      const borderStyle = i < arr.length - 1 ? ";border-bottom:1px solid #F0EDEA" : "";
       return `<li style="${s.list_item}${borderStyle}">${escapeHtml(item)}</li>`;
     }).join("");
-    return `<div style="${bgStyle};${s.card}"><h4 style="${s.title}">${escapeHtml(side.title)}</h4><ul style="${s.list}">${items}</ul></div>`;
+    return `<div style="${s.card}"><div style="${s.header}"><span aria-hidden="true" style="${badgeStyle}"></span><h4 style="${s.title}">${escapeHtml(side.title)}</h4></div><ul style="${s.list}">${items}</ul></div>`;
   }
   return `<div class="fmx-compare-card" style="${s.grid}">${renderSide(left, "left")}${renderSide(right, "right")}</div>`;
 };
@@ -29209,6 +29209,45 @@ renderers.Playground = function renderPlayground(props, _childrenHtml, snapshot)
   const outputHtml = output ? `<div data-role="output" style="${s.output_area};display:none"><div style="font-size:0.75rem;color:#9B9590;margin-bottom:0.5rem">\u8F93\u51FA:</div>` + escapeHtml(output) + `</div>` : "";
   const dataProps = JSON.stringify({ code: displayCode, output: output ?? null });
   return `<div class="fmx-playground" data-component="playground" data-id="${id}" data-props='${escapeHtml(dataProps)}' style="${s.wrapper}"><div style="${s.title_bar}"><span style="${s.title_text}">${escapeHtml(title)}</span><div style="${s.button_group}"><button type="button" data-role="copy" style="${s.button_copy}">\u590D\u5236</button>${runBtn}</div></div><pre style="${s.code_area}"><code>${escapeHtml(displayCode)}</code></pre>` + outputHtml + `</div>`;
+};
+function parseVideoSrc(src) {
+  if (!src) return { kind: "none", embedSrc: null };
+  if (/youtube\.com|youtu\.be/.test(src)) {
+    const m = src.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/);
+    if (m) return { kind: "iframe", embedSrc: `https://www.youtube.com/embed/${m[1]}` };
+  }
+  if (/bilibili\.com/.test(src)) {
+    const m = src.match(/\/(BV[\w]+)/);
+    if (m) return { kind: "iframe", embedSrc: `https://player.bilibili.com/player.html?bvid=${m[1]}&high_quality=1&autoplay=0` };
+  }
+  return { kind: "native", embedSrc: null };
+}
+function boolProp(v) {
+  return v === true || v === "true" || v === "";
+}
+renderers.Video = function renderVideo(props, _childrenHtml, snapshot) {
+  if (!props.src) return "";
+  const s = snapshot.components.Video.static_styles;
+  const { kind, embedSrc } = parseVideoSrc(String(props.src));
+  const mediaHtml = kind === "iframe" && embedSrc ? `<iframe src="${escapeHtml(embedSrc)}" style="${s.media}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>` : (() => {
+    const autoplay = boolProp(props.autoplay);
+    const loop = boolProp(props.loop);
+    const muted = boolProp(props.muted) || autoplay;
+    const controls = props.controls === void 0 ? true : boolProp(props.controls);
+    const attrs = [
+      `src="${escapeHtml(String(props.src))}"`,
+      props.poster ? `poster="${escapeHtml(String(props.poster))}"` : "",
+      controls ? "controls" : "",
+      autoplay ? "autoplay" : "",
+      loop ? "loop" : "",
+      muted ? "muted" : "",
+      "playsinline",
+      `style="${s.media}"`
+    ].filter(Boolean).join(" ");
+    return `<video ${attrs}></video>`;
+  })();
+  const captionHtml = props.caption ? `<figcaption style="${s.caption}">${escapeHtml(String(props.caption))}</figcaption>` : "";
+  return `<figure class="fmx-video" style="${s.wrapper}"><div style="${s.frame}">${mediaHtml}</div>` + captionHtml + `</figure>`;
 };
 
 // src/lib/mdx-parser.mjs

@@ -67,6 +67,17 @@ Callout · CodeTabs · Collapse · CompareCard · Timeline · ImageCarousel · P
 
 ## 版本
 
+- **1.3.0** —— 组件风格对齐 feima-lab 首页设计系统 + 新增 Video 组件。
+  - 同步升级 3 个地方：`feima-lab/app/components/mdx/*.tsx`、`fx-ai-brain-cms/app/components/mdx/MdxComponents.tsx`、skill snapshot + renderer
+  - Callout：糖果色背景 + 左条 → 白底 + 全边框 + 20px 圆角 + 左上角彩色圆点 badge；accent 色降饱和
+  - CompareCard：糖果色双列 → 白底 + 全边框 + title 前竖条 badge
+  - Collapse：F3F1ED header → 白底 header + 展开时 F0EDEA 分隔线
+  - Playground：#1A1A1A 深色 → #131314（对齐首页 `--color-bg-dark`）
+  - 所有组件圆角 16px → 20px，加首页 `--shadow-sm` 细阴影
+  - Timeline 不动（原实现已完全对齐首页 tokens）
+  - **新增 Video 组件**：支持 YouTube / Bilibili 自动转 embed iframe，其他 URL 走原生 `<video>`
+  - 修 `extract-snapshot.mjs` / `check-drift.mjs` 路径：feima-lab 从 Next.js 迁到 React Router v7 后 `src/` → `app/`
+  - snapshot 补齐 shadows tokens 和 bg-dark/bg-dark-secondary
 - **1.2.0** —— 完整对接 ContentApiController。
   - 新增 4 个 API 脚本：`list-articles` / `list-tags` / `save-tag` / `unpublish-article`
   - `save-article` 闭环处理 `meta.tags`（查已有→缺失的自动建→映射成 tagIds）

@@ -13,6 +13,7 @@
 | A vs B 两列等长要点 | `CompareCard` | 两列表格 |
 | 同主题系列截图 **≥3 张** | `ImageCarousel` | 纯 md 多图 |
 | 可运行代码 + 输出 | `Playground` | 代码块 + `> 输出：...` |
+| YouTube/Bilibili/本地视频 | `Video`（v1.3 新增） | 直接放视频链接 |
 | 普通段落/列表/引用 | **纯 md，不用组件** | — |
 
 ## 硬规则
