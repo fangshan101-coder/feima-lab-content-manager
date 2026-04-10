@@ -29255,6 +29255,42 @@ async function parseMdx(source) {
   const processor = unified().use(remarkParse).use(remarkGfm).use(remarkMdx);
   return processor.parse(source);
 }
+function jsLiteralToJson(src) {
+  src = src.replace(/`([^`\\]*(?:\\.[^`\\]*)*)`/g, (_, body3) => {
+    return '"' + body3.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r") + '"';
+  });
+  src = src.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, body3) => {
+    return '"' + body3.replace(/\\'/g, "'").replace(/"/g, '\\"') + '"';
+  });
+  src = src.replace(/([{,]\s*)([a-zA-Z_$][\w$]*)(\s*):/g, '$1"$2"$3:');
+  src = src.replace(/,(\s*[\]}])/g, "$1");
+  return src;
+}
+function parseJsxExpressionValue(raw2) {
+  const trimmed = raw2.trim();
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if (trimmed === "null") return null;
+  if (trimmed === "undefined") return void 0;
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return Number(trimmed);
+  if (/^`[\s\S]*`$/.test(trimmed)) {
+    return trimmed.slice(1, -1);
+  }
+  if (/^"[\s\S]*"$/.test(trimmed) || /^'[\s\S]*'$/.test(trimmed)) {
+    return trimmed.slice(1, -1);
+  }
+  if (/^[\[\{]/.test(trimmed)) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      try {
+        return JSON.parse(jsLiteralToJson(trimmed));
+      } catch {
+      }
+    }
+  }
+  return raw2;
+}
 function extractProps(node2) {
   const props = {};
   for (const attr of node2.attributes || []) {
@@ -29270,12 +29306,7 @@ function extractProps(node2) {
       continue;
     }
     if (value.type === "mdxJsxAttributeValueExpression") {
-      let raw2 = value.value;
-      if (raw2 === "true") props[name2] = true;
-      else if (raw2 === "false") props[name2] = false;
-      else if (/^`[\s\S]*`$/.test(raw2)) props[name2] = raw2.slice(1, -1);
-      else if (/^['"][\s\S]*['"]$/.test(raw2)) props[name2] = raw2.slice(1, -1);
-      else props[name2] = raw2;
+      props[name2] = parseJsxExpressionValue(value.value);
     }
   }
   return props;
