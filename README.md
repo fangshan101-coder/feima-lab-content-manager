@@ -67,6 +67,7 @@ Callout · CodeTabs · Collapse · CompareCard · Timeline · ImageCarousel · P
 
 ## 版本
 
+- **1.4.0** —— slug 规则放宽：不再强制 `YYYY-MM-DD-` 日期前缀，改为纯 kebab-case（例 `how-we-build-agent-skills`）。另外累积了几个视觉 bug 修复（Collapse 箭头方向、Playground/CodeTabs 内层代码块白边、卡片 hover 阴影、Video iframe 加 `referrerpolicy` 让 YouTube 在 file:// 也能播放）+ 修复 JSX 表达式 props 解析（支持 `{[...]}` 语法）。
 - **1.3.0** —— 组件风格对齐 feima-lab 首页设计系统 + 新增 Video 组件。
   - 同步升级 3 个地方：`feima-lab/app/components/mdx/*.tsx`、`fx-ai-brain-cms/app/components/mdx/MdxComponents.tsx`、skill snapshot + renderer
   - Callout：糖果色背景 + 左条 → 白底 + 全边框 + 20px 圆角 + 左上角彩色圆点 badge；accent 色降饱和

@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
  * Create a new post skeleton directory.
- * Usage: node scripts/new-post.mjs --slug <YYYY-MM-DD-kebab> [--cwd <dir>]
+ * Usage: node scripts/new-post.mjs --slug <kebab-slug> [--cwd <dir>]
+ *
+ * slug 格式：kebab-case，小写字母/数字/连字符，≤ 200 字符
+ *   合法示例：how-we-build-agent-skills / mdx-v13-release / ai-2026-roadmap
+ *   不需要日期前缀（YYYY-MM-DD- 的老约定 v1.4 起不再强制）
+ *
  * Exit: 0 success / 1 error
  */
 import { mkdir, writeFile, stat } from 'node:fs/promises';
@@ -27,8 +32,11 @@ async function main() {
     console.error('Usage: node scripts/new-post.mjs --slug <slug> [--cwd <dir>]');
     process.exit(1);
   }
-  if (!/^\d{4}-\d{2}-\d{2}-[a-z0-9-]+$/.test(args.slug)) {
-    console.error(`Invalid slug "${args.slug}". Expected YYYY-MM-DD-<kebab>.`);
+  // slug 规则：小写 kebab-case，1~200 字符，不能以 - 开头或结尾，不能有连续 --
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(args.slug) || args.slug.length > 200) {
+    console.error(
+      `Invalid slug "${args.slug}". Expected kebab-case (lowercase letters, digits, single hyphens), ≤ 200 chars. Example: how-we-build-agent-skills`
+    );
     process.exit(1);
   }
 

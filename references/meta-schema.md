@@ -44,7 +44,7 @@
 
 | 字段 | 类型 | 约束 |
 |---|---|---|
-| `slug` | string | `YYYY-MM-DD-<kebab>` 格式，全局唯一，max 200 字 |
+| `slug` | string | kebab-case（小写字母/数字/单连字符，**不加日期前缀**），全局唯一，max 200 字 |
 | `title` | string | 非空，max 300 字 |
 | `description` | string | 非空，max 1000 字，建议 20-80 字 |
 | `author` | string | 非空，从 MEMORY.md 默认 |
@@ -126,7 +126,7 @@ meta.tags 中的每个字符串：
 
 ## 校验清单（save-article 前自检）
 
-- [ ] slug 格式 `YYYY-MM-DD-kebab`，长度 ≤ 200
+- [ ] slug 格式为 kebab-case（不加日期前缀），长度 ≤ 200
 - [ ] title ≤ 300，description ≤ 1000
 - [ ] route 是 `BLOG` 或 `NEWS`
 - [ ] `category`（名字）或 `categoryId`（数字）二选一已填
