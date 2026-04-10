@@ -29166,7 +29166,8 @@ renderers.Collapse = function renderCollapse(props, childrenHtml, snapshot) {
   const id = uid("collapse");
   const defaultOpen = props.defaultOpen === true || props.defaultOpen === "true";
   const title = props.title ?? "";
-  return `<div class="fmx-collapse" data-component="collapse" data-id="${id}" data-default-open="${defaultOpen}" style="${s.wrapper}"><button type="button" data-role="header" style="${s.header}"><span>${escapeHtml(title)}</span><span data-role="icon" style="${s.icon}">\u25BC</span></button><div data-role="body" style="${s.body};display:${defaultOpen ? "block" : "none"}">${childrenHtml}</div></div>`;
+  const initialRotation = defaultOpen ? "rotate(0deg)" : "rotate(90deg)";
+  return `<div class="fmx-collapse" data-component="collapse" data-id="${id}" data-default-open="${defaultOpen}" style="${s.wrapper}"><button type="button" data-role="header" style="${s.header}"><span>${escapeHtml(title)}</span><span data-role="icon" style="${s.icon};transform:${initialRotation}">\u25BC</span></button><div data-role="body" style="${s.body};display:${defaultOpen ? "block" : "none"}">${childrenHtml}</div></div>`;
 };
 function parseImages(val) {
   if (!val) return [];
@@ -29229,7 +29230,7 @@ renderers.Video = function renderVideo(props, _childrenHtml, snapshot) {
   if (!props.src) return "";
   const s = snapshot.components.Video.static_styles;
   const { kind, embedSrc } = parseVideoSrc(String(props.src));
-  const mediaHtml = kind === "iframe" && embedSrc ? `<iframe src="${escapeHtml(embedSrc)}" style="${s.media}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>` : (() => {
+  const mediaHtml = kind === "iframe" && embedSrc ? `<iframe src="${escapeHtml(embedSrc)}" style="${s.media}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>` : (() => {
     const autoplay = boolProp(props.autoplay);
     const loop = boolProp(props.loop);
     const muted = boolProp(props.muted) || autoplay;
@@ -29366,9 +29367,42 @@ function buildStyleBlock(snapshot) {
   for (const [k, v] of Object.entries(snapshot.tokens.fonts || {})) {
     tokenCss.push(`  --font-${k}: ${v};`);
   }
+  if (snapshot.tokens.shadows) {
+    for (const [k, v] of Object.entries(snapshot.tokens.shadows)) {
+      tokenCss.push(`  --shadow-${k}: ${v};`);
+    }
+  }
   tokenCss.push("}");
+  const hoverCss = `
+.fmx-callout,
+.fmx-collapse,
+.fmx-code-tabs,
+.fmx-playground,
+.fmx-video,
+.fmx-image-carousel > div:first-child,
+.fmx-compare-card > div {
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.fmx-callout:hover,
+.fmx-collapse:hover,
+.fmx-code-tabs:hover,
+.fmx-playground:hover,
+.fmx-video:hover,
+.fmx-image-carousel > div:first-child:hover,
+.fmx-compare-card > div:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10), 0 3px 10px rgba(0, 0, 0, 0.05) !important;
+}
+`;
+  const innerCodeBlockCss = `
+.article-content .fmx-code-tabs pre,
+.article-content .fmx-playground pre {
+  margin: 0;
+  border-radius: 0;
+}
+`;
   return `<style>${tokenCss.join("\n")}
-${snapshot.article_base_css}</style>`;
+${snapshot.article_base_css}
+${hoverCss}${innerCodeBlockCss}</style>`;
 }
 
 // src/lib/interactive-js.mjs
@@ -29380,11 +29414,12 @@ function bindCollapse(el) {
   var icon = el.querySelector('[data-role="icon"]');
   var open = el.dataset.defaultOpen === 'true';
   body.style.display = open ? 'block' : 'none';
-  if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+  // rotate(90deg) clockwise \u2192 \u25C0 (left), rotate(0deg) \u2192 \u25BC (down)
+  if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
   btn.addEventListener('click', function() {
     open = !open;
     body.style.display = open ? 'block' : 'none';
-    if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+    if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
   });
 }`,
   "code-tabs": `

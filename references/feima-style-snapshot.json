@@ -136,8 +136,8 @@
         "button_group": "display:flex;gap:0.5rem",
         "button_copy":  "padding:0.3125rem 0.875rem;font-size:0.75rem;color:#FAF9F6;background:#1F1F20;border:1px solid #2A2A2A;border-radius:8px;cursor:pointer",
         "button_run":   "padding:0.3125rem 0.875rem;font-size:0.75rem;color:#FAF9F6;background:#D4845A;border:none;border-radius:8px;cursor:pointer",
-        "code_area":    "margin:0;padding:1.5rem;background:#131314;color:#FAF9F6;font-size:0.875rem;line-height:1.6;overflow-x:auto",
-        "output_area":  "padding:1rem 1.5rem;background:#FFFFFF;border-top:1px solid #E8E5E0;font-size:0.875rem;font-family:monospace;color:#1A1A1A;white-space:pre-wrap"
+        "code_area":    "margin:0;padding:1.5rem;background:#131314;color:#FAF9F6;font-size:0.875rem;line-height:1.6;overflow-x:auto;border-radius:0",
+        "output_area":  "padding:1rem 1.5rem;background:#FFFFFF;border-top:1px solid #E8E5E0;font-size:0.875rem;font-family:monospace;color:#1A1A1A;white-space:pre-wrap;border-radius:0"
       },
       "interactive": true,
       "js_behavior_key": "playground"
