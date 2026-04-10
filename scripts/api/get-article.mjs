@@ -20,7 +20,7 @@
  *
  * Exit: 0 success / 1 error / 2 not found（slug 在后端不存在）
  */
-import { apiGet, failWith, parseCliArgs, printJson, loadMeta } from './_lib.mjs';
+import { apiGet, failWith, isBusinessError, parseCliArgs, printJson, loadMeta } from './_lib.mjs';
 
 const HELP = `按 slug 查询 feima-lab 文章
 
@@ -62,22 +62,48 @@ async function main() {
     failWith('invalid_argument', '需要 --slug 或 --post-dir 参数', HELP);
   }
 
-  try {
-    const data = await apiGet(`/content/api/article/by-slug/${encodeURIComponent(slug)}`);
-    if (data == null) {
+  // Use rawOnError so we can distinguish "文章不存在" (→ exit 2) from other
+  // business errors (→ exit 1 with api_error).
+  const result = await apiGet(
+    `/content/api/article/by-slug/${encodeURIComponent(slug)}`,
+    undefined,
+    { rawOnError: true }
+  );
+
+  if (isBusinessError(result)) {
+    const msg = result.message || '';
+    if (/文章不存在|not.*found/i.test(msg) || result.code === 20002) {
       process.stderr.write(JSON.stringify({
         status: 'error',
         error_type: 'not_found',
         message: `slug "${slug}" 在后端不存在`,
         suggestion: '先用 save-article.mjs 创建，或检查 slug 拼写。',
+        backend_code: result.code,
+        backend_message: msg,
       }) + '\n');
       process.exit(2);
     }
-    printJson(data);
-  } catch (e) {
-    // failWith exits synchronously; if we reach here something else threw
-    throw e;
+    // Other business errors go through the normal api_error channel
+    failWith(
+      'api_error',
+      `后端返回错误码 ${result.code}: ${msg || '(no message)'}`,
+      '读 backend_message 修正后重试'
+    );
   }
+
+  // data=null when backend returns code:200 but empty (shouldn't happen for
+  // this endpoint, but handle defensively)
+  if (result == null) {
+    process.stderr.write(JSON.stringify({
+      status: 'error',
+      error_type: 'not_found',
+      message: `slug "${slug}" 在后端返回 null data`,
+      suggestion: '先用 save-article.mjs 创建。',
+    }) + '\n');
+    process.exit(2);
+  }
+
+  printJson(result);
 }
 
 main().catch((e) => {

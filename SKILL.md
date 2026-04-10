@@ -1,7 +1,7 @@
 ---
 name: feima-lab-content-manager
-description: 编写 feima-lab 博客、创建 feima-lab 文章、把纯文本/自然语言/已有 md 文档转成 feima-lab 博客样式的 MDX 文章，像素级还原 7 种自定义组件（Callout/CodeTabs/Collapse/CompareCard/Timeline/ImageCarousel/Playground），生成零依赖 preview.html 可离线浏览器预览（交互可用），自动本地化图片（下载/拷贝到 images/）、管理文章元数据（title/author/category/tags/coverImage）。**支持发布到 feima-lab 后端**：保存草稿、自动上传封面图到 OSS、列出远程分类、按 slug 查询远程状态、一键发布草稿为已发布（POST /content/api/article/save / publish / upload via fenxiang-ai-brain ContentApiController）。支持分级工作流：简单文档一把生成、复杂文档先出结构提案确认再生成。触发词：编写 feima-lab 博客、feima-lab 文章、feima-lab 博客管理、feima-lab 样式、把这个整成 feima-lab、blog 写作、博客样式化、feima-lab 发布、发布到 feima-lab、推到远程、feima lab content、保存文章、上传封面图。
-version: 1.1.0
+description: 编写 feima-lab 博客、创建 feima-lab 文章、把纯文本/自然语言/已有 md 文档转成 feima-lab 博客样式的 MDX 文章，像素级还原 7 种自定义组件（Callout/CodeTabs/Collapse/CompareCard/Timeline/ImageCarousel/Playground），生成零依赖 preview.html 可离线浏览器预览（交互可用），自动本地化图片（下载/拷贝到 images/）、管理文章元数据（title/author/category/tags/coverImage）。**完整的 feima-lab 后端集成**（对接 fenxiang-ai-brain ContentApiController）：保存草稿 / 更新 / 一键发布 / 取消发布、自动上传封面图到 OSS、列出远程分类（支持 BLOG/NEWS 路由筛选）、列出文章列表（支持分类/标签/slug/发布状态多条件过滤 + 分页）、按 slug 查询详情、列出 / 创建标签、save 时自动闭环处理 tags（查已有 → 缺失的自动建 → 映射成 tagIds）。支持分级工作流：简单文档一把生成、复杂文档先出结构提案确认再生成。触发词：编写 feima-lab 博客、feima-lab 文章、feima-lab 博客管理、feima-lab 样式、把这个整成 feima-lab、blog 写作、博客样式化、feima-lab 发布、发布到 feima-lab、推到远程、feima lab content、保存文章、更新文章、取消发布、下线文章、上传封面图、列出分类、列出标签、列出文章、查重 slug、写动态、写新闻。
+version: 1.2.0
 ---
 
 # feima-lab 内容管家 (feima-lab-content-manager)
@@ -15,18 +15,20 @@ version: 1.1.0
 - 文章元数据管理（meta.json）
 - 分级工作流（简单/复杂）
 
-✅ **远程 API（v1.1）**—— 通过 fenxiang-ai-brain ContentApiController：
-- 列出后端分类（自动做 `category 名字 → categoryId` 映射）
-- 上传图片到 OSS（支持任意文件，save 时自动上传封面图）
-- 保存文章草稿（创建或更新）
-- 按 slug 查询远程文章详情
-- 发布草稿为已发布状态
+✅ **远程 API（v1.2）**—— 完整对接 fenxiang-ai-brain ContentApiController：
+- **文章 CRUD**：save（create / update）/ publish / unpublish / by-slug / list（多条件筛选+分页）
+- **分类**：list，支持 `--route BLOG|NEWS` 按路由筛选
+- **标签**：list / save（创建），save-article 内部会闭环处理 `meta.tags` 字符串数组（查已有→缺失的自动建→映射成 tagIds）
+- **图片上传**：任意文件到 OSS，save-article 内部会自动上传封面图
+- **category 映射**：`meta.category` 名字 + `meta.route` 自动查到 `categoryId`
+- **slug 冲突检查**：`list-articles --slug xxx` 专门用于查重
 
 ❌ **不做**：
 - PDF/Word/飞书等结构化文档解析（交给其他 skill 先转成 md 或纯文本）
 - 样式定制（样式唯一来源是 `references/feima-style-snapshot.json`）
-- 取消发布 / 删除文章（v2 能力，防止误操作）
-- tag 自动查询/创建（v1.1 `meta.tags` 字段上传时被忽略，v2 再加）
+- **删除文章**（`/article/delete` 破坏性，防误操作，v2 能力）
+- **按 id 查文章**（`/article/detail/{id}` 与 by-slug 冗余，by-slug 更稳定）
+- **删除标签**（`/tag/delete` 很少用且语义怪，v2 再看）
 - 本地 ↔ 远程自动 diff / sync
 
 ## 前置条件
@@ -38,11 +40,13 @@ version: 1.1.0
 
 **唯一环境要求**：Node ≥ 18。
 
-**调用远程 API 的额外要求**：必须设置环境变量 `FX_AI_API_KEY`。用户在 shell 中执行：
+**调用远程 API 的额外要求**：必须设置环境变量 `FX_AI_API_KEY`，且 **key 必须是 `internal` 类型**。用户在 shell 中执行：
 
-    export FX_AI_API_KEY=<your-key>
+    export FX_AI_API_KEY=<your-internal-key>
 
-从 https://platform.fenxiang-ai.com/ 登录后获取。**key 不要写入 MEMORY.md 或任何持久化位置**——让用户在 shell 自己管理。
+**重要**：ContentApiController 标注了 `@ExternalApiAuth(level = ApiAuthLevel.INTERNAL)`——`normal` 类型的 key 会被后端直接拒绝。从 https://platform.fenxiang-ai.com/ 登录后申请 internal key。
+
+**key 不要写入 MEMORY.md 或任何持久化位置**——让用户在 shell 自己管理。
 
 如果只用本地构建能力（render / new-post / image-localize），不需要设置这个 env var。
 
@@ -112,26 +116,22 @@ version: 1.1.0
     # MDX → preview.html（打印路径到 stdout）
     node scripts/render.mjs <posts/<slug>>/article.mdx
 
-### 远程 API（需要 `FX_AI_API_KEY` 环境变量）
+### 远程 API（需要 `FX_AI_API_KEY` 环境变量，internal 类型）
 
-    # 列出后端分类（首次建文章要看有哪些 category 可选）
-    node scripts/api/list-categories.mjs [--format json|table]
+    # === 查询类 ===
+    node scripts/api/list-categories.mjs [--route BLOG|NEWS] [--format json|table]
+    node scripts/api/list-articles.mjs   [--route ...] [--category-id ...] [--tag ...] [--slug ...]
+                                          [--publish-status 0|1] [--page 1] [--size 10] [--format ...]
+    node scripts/api/list-tags.mjs       [--format json|table]
+    node scripts/api/get-article.mjs     --slug <slug>
+    node scripts/api/get-article.mjs     --post-dir <posts/slug>
 
-    # 上传单个文件到 OSS（save-article 内部会自动调用）
-    node scripts/api/upload-file.mjs --file <path>
-
-    # 按 slug 查询远程文章（编辑前拉状态 / 发布后确认）
-    node scripts/api/get-article.mjs --slug <slug>
-    node scripts/api/get-article.mjs --post-dir <posts/slug>
-
-    # 保存文章草稿（自动查 categoryId + 自动上传 coverImage）
-    node scripts/api/save-article.mjs --post-dir <posts/slug>
-    node scripts/api/save-article.mjs --post-dir <posts/slug> --dry-run
-
-    # 发布（草稿 → 已发布）
-    node scripts/api/publish-article.mjs --post-dir <posts/slug>
-    node scripts/api/publish-article.mjs --id <articleId>
-    node scripts/api/publish-article.mjs --slug <slug>
+    # === 写入类 ===
+    node scripts/api/upload-file.mjs     --file <path>
+    node scripts/api/save-article.mjs    --post-dir <posts/slug> [--dry-run]
+    node scripts/api/save-tag.mjs        --name <tagName>
+    node scripts/api/publish-article.mjs   --post-dir <posts/slug> | --id <n> | --slug <slug>
+    node scripts/api/unpublish-article.mjs --post-dir <posts/slug> | --id <n> | --slug <slug>
 
 所有脚本均为 Node.js `.mjs`，跨平台（macOS/Linux/Windows 均可）。
 
@@ -140,16 +140,26 @@ version: 1.1.0
 | 用户意图 | 脚本 | 前置 Read |
 |---|---|---|
 | "发布这篇文章" / "推到 feima-lab" / "上线" | save-article → publish-article 串行 | `references/api-publish-workflow.md` |
+| "写一篇博客" | meta.route="BLOG"，save-article | 同上 |
+| "写一条动态/新闻" | meta.route="NEWS"，save-article | 同上 |
 | "更新已发布的文章" / "重新推" | save-article（mode 自动识别为 update） | 同上 |
-| "这篇在远程是什么状态" / "查远程版本" | get-article | 同上 |
-| "我不知道填哪个 category" / "看看所有分类" | list-categories --format table | 同上 |
-| "只想上传封面图/图片，不发文章" | upload-file --file `<path>` | 同上 |
-| "API 报错了，怎么处理" | （查 stderr 的 error_type） | `references/api-error-handling.md` |
+| "下线这篇" / "撤回" / "取消发布" | unpublish-article | 同上 |
+| "这篇在远程是什么状态" | get-article | 同上 |
+| "这个 slug 能用吗" / "查重" | list-articles --slug `<slug>` | 同上 |
+| "列我发过的所有博客" | list-articles --route BLOG --publish-status 1 --format table | 同上 |
+| "列某标签下的文章" | list-articles --tag `<name>` --format table | 同上 |
+| "看看所有分类" | list-categories [--route BLOG] --format table | 同上 |
+| "看看所有标签" | list-tags --format table | 同上 |
+| "新建一个标签" | save-tag --name `<name>`（一般不用手工调） | 同上 |
+| "上传一张图" | upload-file --file `<path>`（save 内部会自动调） | 同上 |
+| "API 报错了怎么处理" | （查 stderr 的 error_type） | `references/api-error-handling.md` |
+| "删掉这篇文章" | **v1.2 不支持**，告诉用户 v2 再做 | — |
 
 **强制规则**：
-- 调用 API 脚本前**必须 Read** `references/api-publish-workflow.md` 和 `references/api-error-handling.md`（按需）
-- 如果 stderr 返回 `{"error_type": "missing_api_key"}` → 立刻停下告诉用户设 env var，**禁止**自动把 key 写 MEMORY.md
-- save-article 和 publish-article 的结果（articleId / published_at）会自动回写 meta.json，**不要手工修改** `publish.remote_id` / `publish.published_at`
+- 调用 API 脚本前**必须 Read** `references/api-publish-workflow.md`，按需 Read `references/api-error-handling.md`
+- 如果 stderr 返回 `{"error_type": "missing_api_key"}` → 立刻停下告诉用户设**internal 类型** env var，**禁止**自动把 key 写 MEMORY.md
+- save / publish / unpublish 的结果（articleId / tagIds / published_at）会自动回写 meta.json，**不要手工修改** `publish.remote_id` / `publish.published_at` / `publish.last_saved_tag_ids`
+- Claude 根据用户描述自主决定 `meta.route`（"博客"→BLOG，"动态/新闻/公告"→NEWS），默认 BLOG
 
 ## 错误处理
 

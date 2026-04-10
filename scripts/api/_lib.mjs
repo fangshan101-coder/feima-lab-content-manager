@@ -112,11 +112,13 @@ async function parseJsonOrFail(res, url) {
 
 /**
  * Validate the CommonResult envelope and return `data`.
- * Exits with error if the envelope indicates failure.
+ * Exits with error if the envelope indicates failure — unless rawOnError=true,
+ * in which case the full envelope is returned to the caller for custom handling.
  */
-function unwrapCommonResult(body, url) {
+function unwrapCommonResult(body, url, rawOnError = false) {
   if (body && typeof body === 'object' && 'code' in body) {
     if (body.code === 200) return body.data;
+    if (rawOnError) return body; // caller wants to inspect non-200 codes
     failWith(
       'api_error',
       `后端返回错误码 ${body.code}: ${body.message || body.errorMessage || '(no message)'}`,
@@ -127,14 +129,38 @@ function unwrapCommonResult(body, url) {
   return body;
 }
 
+/**
+ * Sentinel returned by apiGet/apiPostJson when `rawOnError: true` and code != 200.
+ * Callers can detect it via `result && result._isBusinessError === true`.
+ */
+function markBusinessError(envelope) {
+  return {
+    _isBusinessError: true,
+    code: envelope.code,
+    message: envelope.message || envelope.errorMessage || '',
+    data: envelope.data ?? null,
+  };
+}
+
+/**
+ * True if a value returned from apiGet/apiPostJson (with rawOnError:true) is a
+ * business-error sentinel. Lets callers handle specific codes like "文章不存在".
+ */
+export function isBusinessError(v) {
+  return !!(v && typeof v === 'object' && v._isBusinessError === true);
+}
+
 // ----- public API -----
 
 /**
  * GET a JSON endpoint. Returns the `data` field of CommonResult.
  * @param {string} path  path relative to API_BASE_URL, e.g. '/content/api/category/list'
  * @param {object} [query]  optional query params
+ * @param {object} [options]
+ * @param {boolean} [options.rawOnError=false]  if true, return a business-error
+ *   sentinel `{ _isBusinessError, code, message, data }` instead of exit-on-error.
  */
-export async function apiGet(path, query) {
+export async function apiGet(path, query, options = {}) {
   const apiKey = requireApiKey();
   const url = new URL(API_BASE_URL + path);
   if (query) {
@@ -154,7 +180,11 @@ export async function apiGet(path, query) {
     );
   }
   const body = await parseJsonOrFail(res, url.toString());
-  return unwrapCommonResult(body, url.toString());
+  const unwrapped = unwrapCommonResult(body, url.toString(), options.rawOnError === true);
+  if (options.rawOnError && body && body.code !== 200) {
+    return markBusinessError(body);
+  }
+  return unwrapped;
 }
 
 /**

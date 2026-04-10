@@ -56,19 +56,23 @@ Options:
   2. posts/<slug>/article.mdx 已存在（作为 contentMarkdown 上传）
   3. 封面图本地路径 meta.coverImage（./images/xxx）会自动上传到 OSS
 
-v1 限制：
-  - tags 字段被忽略，不会上传到后端（v2 支持）
-  - 如果 meta.categoryId 已填，直接使用；否则按 meta.category 名字查找
+v1.2 自动逻辑：
+  - categoryId 空 → 按 meta.route (BLOG/NEWS) + meta.category 名字查 id
+  - coverImageUrl 空 → 自动上传 coverImage 本地文件
+  - tags 数组会闭环处理：查已有 tag → 缺失的自动建 → 收集 tagIds 传给 save
+  - tint 默认 bg-tint-blue（必须带 bg- 前缀）
+  - 返回的 articleId / tagIds 写回 meta.json（publish.remote_id / publish.last_saved_tag_ids）
 
 Output (json):
-  { "articleId": 123, "slug": "2026-04-09-x", "mode": "create" }
+  { "articleId": 123, "slug": "2026-04-09-x", "mode": "create", "tagIds": [1,3] }
 
 Auth:
-  export FX_AI_API_KEY=<your-key>
+  export FX_AI_API_KEY=<your-key>（必须是 internal 类型的 key）
 `;
 
 /**
  * Resolve meta.category (name) to a categoryId by listing from the backend.
+ * If meta.route is set, only categories matching that route are considered.
  * Exits with invalid_meta on mismatch.
  */
 async function resolveCategoryId(meta) {
@@ -79,21 +83,84 @@ async function resolveCategoryId(meta) {
     failWith(
       'invalid_meta',
       'meta.json 缺少 category 或 categoryId 字段',
-      '在 meta.json 填 `"category": "AI 实战"`（名字）或 `"categoryId": 3`（数字）'
+      '在 meta.json 填 `"category": "技术探索"`（名字）或 `"categoryId": 5`（数字）'
     );
   }
-  const list = await apiGet('/content/api/category/list');
+  const route = meta.route ? String(meta.route).toUpperCase() : undefined;
+  const list = await apiGet('/content/api/category/list', route ? { routeCode: route } : undefined);
   const rows = Array.isArray(list) ? list : [];
   const match = rows.find(r => r.categoryName === meta.category);
   if (!match) {
-    const available = rows.map(r => `  - ${r.categoryName} (id=${r.id})`).join('\n');
+    const available = rows.map(r => `  - ${r.categoryName} (id=${r.id}, route=${r.routeCode || '?'})`).join('\n');
     failWith(
       'invalid_meta',
-      `meta.category "${meta.category}" 在后端分类列表中不存在`,
-      `可选分类：\n${available || '  (后端返回空列表)'}`
+      `meta.category "${meta.category}" 在后端分类列表中不存在${route ? `（route=${route}）` : ''}`,
+      `可选分类：\n${available || '  (后端返回空列表——请先在后台新建分类)'}`
     );
   }
   return match.id;
+}
+
+/**
+ * Resolve meta.tags (string array) to a numeric tagIds array.
+ *
+ * Flow:
+ *   1. If meta.tags is empty → return []
+ *   2. GET /content/api/tag/list once to get existing tags
+ *   3. For each name in meta.tags:
+ *      - if exists → use existing id
+ *      - if missing → POST /content/api/tag/save to create, use new id
+ *   4. Return the collected tagIds (in the same order as meta.tags)
+ *
+ * Exits with invalid_meta if any tagName > 64 chars.
+ */
+async function resolveTagIds(meta) {
+  const raw = Array.isArray(meta.tags) ? meta.tags : [];
+  const names = raw
+    .map(t => (t == null ? '' : String(t).trim()))
+    .filter(t => t.length > 0);
+  if (names.length === 0) return [];
+
+  for (const n of names) {
+    if (n.length > 64) {
+      failWith(
+        'invalid_meta',
+        `meta.tags 中的标签名 "${n.slice(0, 20)}..." 超过 64 字符上限`,
+        '截断或改名后重试'
+      );
+    }
+  }
+
+  // Fetch existing tags once
+  const existingList = await apiGet('/content/api/tag/list');
+  const existing = new Map(); // lowercased name → { id, tagName }
+  if (Array.isArray(existingList)) {
+    for (const row of existingList) {
+      if (row && row.tagName) {
+        existing.set(String(row.tagName).toLowerCase(), { id: row.id, tagName: row.tagName });
+      }
+    }
+  }
+
+  const tagIds = [];
+  for (const name of names) {
+    const hit = existing.get(name.toLowerCase());
+    if (hit) {
+      tagIds.push(hit.id);
+      continue;
+    }
+    // Create new
+    process.stderr.write(`[tags] 创建新标签: ${name}\n`);
+    const newId = await apiPostJson('/content/api/tag/save', { tagName: name });
+    if (newId == null) {
+      failWith('api_error', `创建标签 "${name}" 失败：后端返回 id 为 null`);
+    }
+    tagIds.push(Number(newId));
+    // Cache it so duplicates in the same meta.tags array don't re-create
+    existing.set(name.toLowerCase(), { id: Number(newId), tagName: name });
+  }
+
+  return tagIds;
 }
 
 /**
@@ -173,13 +240,7 @@ async function main() {
   const categoryId = await resolveCategoryId(meta);
   const coverImageUrl = await resolveCoverImageUrl(meta, postDir);
   const contentMarkdown = await loadArticleMarkdown(postDir);
-
-  // Warn about v1-ignored fields
-  if (Array.isArray(meta.tags) && meta.tags.length > 0) {
-    process.stderr.write(
-      `[warn] meta.tags 在 v1 中被忽略（${meta.tags.length} 个标签），v2 将支持自动查询/创建。\n`
-    );
-  }
+  const tagIds = await resolveTagIds(meta);
 
   const existingRemoteId = meta.publish?.remote_id;
   const mode = existingRemoteId ? 'update' : 'create';
@@ -193,9 +254,9 @@ async function main() {
     coverImageUrl,
     contentMarkdown,
     author: meta.author,
-    tint: meta.tint || 'tint-blue',
+    tint: meta.tint || 'bg-tint-blue',
     sortOrder: meta.sortOrder ?? null,
-    // tagIds 故意不传，v1 忽略
+    tagIds: tagIds.length > 0 ? tagIds : null,
   };
 
   if (args['dry-run']) {
@@ -204,7 +265,9 @@ async function main() {
     return;
   }
 
-  process.stderr.write(`[save] mode=${mode} slug=${meta.slug} categoryId=${categoryId}\n`);
+  process.stderr.write(
+    `[save] mode=${mode} slug=${meta.slug} categoryId=${categoryId} tagIds=[${tagIds.join(',')}]\n`
+  );
   const articleId = await apiPostJson('/content/api/article/save', request);
   if (articleId == null) {
     failWith('api_error', '后端返回 articleId 为 null', '检查后端日志');
@@ -216,12 +279,14 @@ async function main() {
   meta.publish = meta.publish || {};
   meta.publish.remote_id = Number(articleId);
   meta.publish.last_saved_at = new Date().toISOString();
+  meta.publish.last_saved_tag_ids = tagIds.length > 0 ? tagIds : null;
   await saveMeta(postDir, meta);
 
   printJson({
     articleId: Number(articleId),
     slug: meta.slug,
     mode,
+    tagIds,
   });
 }
 

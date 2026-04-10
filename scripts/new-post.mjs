@@ -43,27 +43,30 @@ async function main() {
   await mkdir(join(postDir, 'images'), { recursive: true });
 
   const meta = {
-    $schema_version: '1.1',
+    $schema_version: '1.2',
     slug: args.slug,
     title: '',
     description: '',
     author: '',
-    category: '',           // 人类可读的分类名（save-article 会按名字查 id）
-    categoryId: null,       // v1.1 新增：后端 categoryId；留空则自动按 category 名字查
+    route: 'BLOG',          // v1.2 新增：路由编码 BLOG|NEWS。博客选 BLOG，动态/新闻选 NEWS。
+    category: '',           // 人类可读的分类名（save-article 会按名字+route 查 id）
+    categoryId: null,       // 后端 categoryId；留空则自动按 category 名字查
     subCategory: '',
-    tags: [],               // v1.1 save-article 暂时忽略此字段
+    tags: [],               // v1.2 起 save-article 会自动查/建 tag 并映射为 tagIds
     coverImage: '',         // 本地路径（如 ./images/cover.webp），save 时自动上传
-    coverImageUrl: '',      // v1.1 新增：远程 URL；save 成功上传 coverImage 后会自动填
+    coverImageUrl: '',      // 远程 URL；save 成功上传 coverImage 后自动填
     publishTime: new Date().toISOString(),
     readTime: '',
-    tint: 'tint-blue',
+    tint: 'bg-tint-blue',   // 必须带 bg- 前缀：bg-tint-yellow/blue/rose/green
+    sortOrder: 0,           // 列表排序，越大越靠前
     components_used: [],
     render: { last_rendered_at: null, snapshot_version: null, feima_lab_commit: null },
     source: { original_input: 'plain_text', source_md_exists: false },
     publish: {
       status: 'draft',
-      remote_id: null,      // v1.1 新增：后端返回的 articleId
-      last_saved_at: null,  // v1.1 新增：最近一次 save-article 成功的时间
+      remote_id: null,      // 后端返回的 articleId
+      last_saved_at: null,  // 最近一次 save-article 成功的时间
+      last_saved_tag_ids: null, // v1.2 新增：最近一次 save 闭环后的 tagIds
       published_at: null,
       published_slug: null,
       api_response: null,

@@ -13,12 +13,12 @@
 - 元数据管理（title / author / category / tags / coverImage）
 - 分级工作流：短文一把生成，长文先出结构提案
 
-**发布到 feima-lab 后端（v1.1 新增）**：
-- 列出后端分类（自动做 category 名字 → id 映射）
-- 上传封面图 / 任意文件到 OSS
-- 保存文章草稿（创建 / 更新）
-- 按 slug 查询远程文章详情
-- 一键发布草稿为已发布
+**发布到 feima-lab 后端（v1.2 完整集成）**：
+- **文章 CRUD**：save（create/update） · publish · unpublish · get by-slug · list（多条件筛选+分页）
+- **分类**：list，支持按 route（BLOG/NEWS）筛选，名字→id 自动映射
+- **标签**：list / save，save-article 时 `meta.tags` 自动闭环（查已有→缺失的自动建→映射成 tagIds）
+- **图片**：upload 到 OSS，save-article 自动上传本地封面图
+- **slug 查重**：`list-articles --slug xxx` 专用接口
 
 ## 支持的组件
 
@@ -37,9 +37,9 @@ Callout · CodeTabs · Collapse · CompareCard · Timeline · ImageCarousel · P
 
 **调用远程 API 需要额外设置**：
 
-    export FX_AI_API_KEY=<your-key>
+    export FX_AI_API_KEY=<your-internal-key>
 
-从 https://platform.fenxiang-ai.com/ 登录获取。如果只用本地构建（render / new-post / image-localize），不需要设置。
+从 https://platform.fenxiang-ai.com/ 登录获取，**必须申请 `internal` 类型的 key**（`normal` 级会被后端直接拒绝）。如果只用本地构建（render / new-post / image-localize），不需要设置这个 env var。
 
 ## 使用
 
@@ -67,6 +67,14 @@ Callout · CodeTabs · Collapse · CompareCard · Timeline · ImageCarousel · P
 
 ## 版本
 
+- **1.2.0** —— 完整对接 ContentApiController。
+  - 新增 4 个 API 脚本：`list-articles` / `list-tags` / `save-tag` / `unpublish-article`
+  - `save-article` 闭环处理 `meta.tags`（查已有→缺失的自动建→映射成 tagIds）
+  - `list-categories` 支持 `--route BLOG|NEWS` 过滤
+  - `meta.json` schema 升到 1.2：加 `route` 字段 + `sortOrder` + `publish.last_saved_tag_ids`
+  - 修复 bug：`tint` 默认值 `tint-blue` → `bg-tint-blue`（后端要求带 bg- 前缀）
+  - 修复 bug：`get-article` 识别 "文章不存在" 为 `not_found`（exit 2）
+  - 明确声明：API Key 必须是 `internal` 类型（后端 `@ExternalApiAuth(level=INTERNAL)`）
 - **1.1.0** —— 新增 5 个 API 脚本（list-categories / upload-file / get-article / save-article / publish-article），支持从 Claude Code 一键发布到 feima-lab 后端。零 npm 依赖（Node 18+ 内置 fetch/FormData/Blob）。
 - **1.0.0** —— 首版，本地预览与元数据管理。
 
