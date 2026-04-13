@@ -8,6 +8,8 @@
  *      得到对应 id；找不到报错并列出可选分类
  *   3. 如果 meta.coverImageUrl 为空且 meta.coverImage 是本地路径，
  *      自动上传该图片，并把返回的 URL 写回 meta.coverImageUrl
+ *   3b. 扫描 article.mdx 中所有 ./images/ 本地引用，逐张上传到 OSS，
+ *       在内存中替换为远程 URL（磁盘上的 mdx 文件保持本地路径不变）
  *   4. 构造 SaveArticleRequest 并 POST /content/api/article/save
  *   5. 把返回的 articleId 写回 meta.publish.remote_id
  *
@@ -56,9 +58,10 @@ Options:
   2. posts/<slug>/article.mdx 已存在（作为 contentMarkdown 上传）
   3. 封面图本地路径 meta.coverImage（./images/xxx）会自动上传到 OSS
 
-v1.2 自动逻辑：
+v1.3 自动逻辑：
   - categoryId 空 → 按 meta.route (BLOG/NEWS) + meta.category 名字查 id
   - coverImageUrl 空 → 自动上传 coverImage 本地文件
+  - 正文图片闭环：扫描 article.mdx 中所有 ./images/ 引用，逐张上传 OSS，替换为远程 URL
   - tags 数组会闭环处理：查已有 tag → 缺失的自动建 → 收集 tagIds 传给 save
   - tint 默认 bg-tint-blue（必须带 bg- 前缀）
   - 返回的 articleId / tagIds 写回 meta.json（publish.remote_id / publish.last_saved_tag_ids）
@@ -198,6 +201,57 @@ async function resolveCoverImageUrl(meta, postDir) {
   return result.url;
 }
 
+/**
+ * Scan article MDX content for local ./images/ references,
+ * upload each unique file to OSS, and replace paths with remote URLs.
+ *
+ * Matched patterns (all share the ./images/ prefix):
+ *   - Markdown:   ![alt](./images/xxx.png)
+ *   - JSX attr:   src="./images/xxx.png"  poster="./images/xxx.png"
+ *   - JSON prop:  "src":"./images/xxx.png"
+ *
+ * Only modifies the in-memory content — article.mdx on disk keeps local paths.
+ */
+async function resolveContentImages(content, postDir, dryRun = false) {
+  const localImageRegex = /\.\/images\/[^\s"')\]},]+/g;
+  const refs = [...new Set(content.match(localImageRegex) || [])];
+  if (refs.length === 0) return content;
+
+  process.stderr.write(`[upload] 扫描到 ${refs.length} 张正文图片需要上传\n`);
+
+  if (dryRun) {
+    for (const r of refs) process.stderr.write(`[dry-run]   ${r}\n`);
+    return content;
+  }
+
+  const pathToUrl = new Map();
+  for (const localRef of refs) {
+    const absPath = resolve(postDir, localRef);
+    try {
+      await stat(absPath);
+    } catch {
+      failWith(
+        'file_not_found',
+        `正文图片不存在: ${absPath}（引用路径: ${localRef}）`,
+        '先跑 scripts/image-localize.mjs 确保所有图片已本地化到 images/ 目录。'
+      );
+    }
+    process.stderr.write(`[upload] 上传正文图片: ${localRef}\n`);
+    const result = await apiPostMultipart('/content/api/upload', absPath);
+    if (!result || !result.url) {
+      failWith('api_error', `正文图片上传响应缺少 url 字段: ${localRef}`, `原始响应: ${JSON.stringify(result)}`);
+    }
+    pathToUrl.set(localRef, result.url);
+  }
+
+  let resolved = content;
+  for (const [localRef, remoteUrl] of pathToUrl) {
+    resolved = resolved.split(localRef).join(remoteUrl);
+  }
+  process.stderr.write(`[upload] 正文图片全部上传完成，共 ${pathToUrl.size} 张\n`);
+  return resolved;
+}
+
 async function loadArticleMarkdown(postDir) {
   const mdxPath = join(postDir, 'article.mdx');
   try {
@@ -239,7 +293,8 @@ async function main() {
 
   const categoryId = await resolveCategoryId(meta);
   const coverImageUrl = await resolveCoverImageUrl(meta, postDir);
-  const contentMarkdown = await loadArticleMarkdown(postDir);
+  const rawMarkdown = await loadArticleMarkdown(postDir);
+  const contentMarkdown = await resolveContentImages(rawMarkdown, postDir, !!args['dry-run']);
   const tagIds = await resolveTagIds(meta);
 
   const existingRemoteId = meta.publish?.remote_id;
