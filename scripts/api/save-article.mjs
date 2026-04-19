@@ -8,8 +8,8 @@
  *      得到对应 id；找不到报错并列出可选分类
  *   3. 如果 meta.coverImageUrl 为空且 meta.coverImage 是本地路径，
  *      自动上传该图片，并把返回的 URL 写回 meta.coverImageUrl
- *   3b. 扫描 article.mdx 中所有 ./images/ 本地引用，逐张上传到 OSS，
- *       在内存中替换为远程 URL（磁盘上的 mdx 文件保持本地路径不变）
+ *   3b. 扫描 article.mdx 中所有本地图片引用（./xxx.png 等），逐张上传到 OSS，
+ *       替换为远程 URL 并原位写回 article.mdx（下次 save 幂等，不会重传）
  *   4. 构造 SaveArticleRequest 并 POST /content/api/article/save
  *   5. 把返回的 articleId 写回 meta.publish.remote_id
  *
@@ -30,7 +30,7 @@
  *
  * Exit: 0 success / 1 error (JSON to stderr)
  */
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, stat, writeFile } from 'node:fs/promises';
 import { resolve, join, isAbsolute } from 'node:path';
 import {
   apiGet,
@@ -61,7 +61,8 @@ Options:
 v1.3 自动逻辑：
   - categoryId 空 → 按 meta.route (BLOG/NEWS) + meta.category 名字查 id
   - coverImageUrl 空 → 自动上传 coverImage 本地文件
-  - 正文图片闭环：扫描 article.mdx 中所有 ./images/ 引用，逐张上传 OSS，替换为远程 URL
+  - 正文图片闭环：扫描 article.mdx 中所有本地图片（./images/、./illustrations/ 等），逐张上传 OSS，
+    替换为远程 URL 并原位写回 article.mdx（下次 save 会跳过已是 https:// 的引用，天然幂等）
   - tags 数组会闭环处理：查已有 tag → 缺失的自动建 → 收集 tagIds 传给 save
   - tint 默认 bg-tint-blue（必须带 bg- 前缀）
   - 返回的 articleId / tagIds 写回 meta.json（publish.remote_id / publish.last_saved_tag_ids）
@@ -202,18 +203,21 @@ async function resolveCoverImageUrl(meta, postDir) {
 }
 
 /**
- * Scan article MDX content for local ./images/ references,
- * upload each unique file to OSS, and replace paths with remote URLs.
+ * Scan article MDX content for local image references (relative paths starting with ./),
+ * upload each unique file to OSS, replace paths with remote URLs, and write the result
+ * back to article.mdx on disk so subsequent saves are idempotent.
  *
- * Matched patterns (all share the ./images/ prefix):
- *   - Markdown:   ![alt](./images/xxx.png)
- *   - JSX attr:   src="./images/xxx.png"  poster="./images/xxx.png"
+ * Matched patterns — any relative path starting with ./ that ends with a common image extension:
+ *   - Markdown:   ![alt](./images/xxx.png), ![alt](./illustrations/xxx.png)
+ *   - JSX attr:   src="./images/xxx.png"  poster="./illustrations/xxx.png"
  *   - JSON prop:  "src":"./images/xxx.png"
  *
- * Only modifies the in-memory content — article.mdx on disk keeps local paths.
+ * Idempotent: already-remote https:// URLs aren't matched, so re-running save-article
+ * won't re-upload. The on-disk article.mdx is rewritten so local preview after publish
+ * loads images from OSS — consistent with what the remote reader sees.
  */
-async function resolveContentImages(content, postDir, dryRun = false) {
-  const localImageRegex = /\.\/images\/[^\s"')\]},]+/g;
+async function resolveContentImages(content, postDir, mdxPath, dryRun = false) {
+  const localImageRegex = /\.\/[\w\-./]+?\.(?:png|jpg|jpeg|gif|webp|svg)/gi;
   const refs = [...new Set(content.match(localImageRegex) || [])];
   if (refs.length === 0) return content;
 
@@ -233,7 +237,7 @@ async function resolveContentImages(content, postDir, dryRun = false) {
       failWith(
         'file_not_found',
         `正文图片不存在: ${absPath}（引用路径: ${localRef}）`,
-        '先跑 scripts/image-localize.mjs 确保所有图片已本地化到 images/ 目录。'
+        '检查 MDX 中的路径拼写，或把图片文件放到对应目录。'
       );
     }
     process.stderr.write(`[upload] 上传正文图片: ${localRef}\n`);
@@ -249,13 +253,17 @@ async function resolveContentImages(content, postDir, dryRun = false) {
     resolved = resolved.split(localRef).join(remoteUrl);
   }
   process.stderr.write(`[upload] 正文图片全部上传完成，共 ${pathToUrl.size} 张\n`);
+  // Write back to disk so subsequent save-article calls skip these (regex won't match https://)
+  await writeFile(mdxPath, resolved, 'utf8');
+  process.stderr.write(`[upload] article.mdx 已原位更新为 OSS URL\n`);
   return resolved;
 }
 
 async function loadArticleMarkdown(postDir) {
   const mdxPath = join(postDir, 'article.mdx');
   try {
-    return await readFile(mdxPath, 'utf8');
+    const content = await readFile(mdxPath, 'utf8');
+    return { mdxPath, content };
   } catch (e) {
     if (e.code === 'ENOENT') {
       failWith(
@@ -293,8 +301,8 @@ async function main() {
 
   const categoryId = await resolveCategoryId(meta);
   const coverImageUrl = await resolveCoverImageUrl(meta, postDir);
-  const rawMarkdown = await loadArticleMarkdown(postDir);
-  const contentMarkdown = await resolveContentImages(rawMarkdown, postDir, !!args['dry-run']);
+  const { mdxPath, content: rawMarkdown } = await loadArticleMarkdown(postDir);
+  const contentMarkdown = await resolveContentImages(rawMarkdown, postDir, mdxPath, !!args['dry-run']);
   const tagIds = await resolveTagIds(meta);
 
   const existingRemoteId = meta.publish?.remote_id;
